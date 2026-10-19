@@ -3,43 +3,81 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
 
 #define PORT 8080
 #define BUFFER_SIZE 1024
 
-int main() {
-    int sock = 0;
-    struct sockaddr_in serv_addr;
-    char *message = "Hello from Client!";
-    char buffer[BUFFER_SIZE] = {0};
+int main()
+{
+    int sock;
+    struct sockaddr_in server_addr;
+    char buffer[BUFFER_SIZE];
 
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        printf("\n Socket creation error \n");
-        return -1;
+    // Create TCP socket
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == -1)
+    {
+        perror("Socket creation failed");
+        return 1;
     }
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(PORT);
+    // Configure server address
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
 
-    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
-        printf("\nInvalid address/ Address not supported \n");
-        return -1;
+    // Use localhost when client and server run on the same machine
+    if (inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr) != 1)
+    {
+        printf("Invalid server IP address.\n");
+        close(sock);
+        return 1;
     }
 
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        printf("\nConnection Failed \n");
-        return -1;
+    // Connect to server
+    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+    {
+        perror("Connection failed");
+        close(sock);
+        return 1;
     }
 
-    printf("Connected to the server.\n");
+    printf("Connected to TCP server!\n");
+    printf("Type 'exit' to end the chat.\n");
 
-    send(sock, message, strlen(message), 0);
-    printf("Message sent to server: %s\n", message);
+    while (1)
+    {
+        printf("Enter message: ");
+        if (fgets(buffer, sizeof(buffer), stdin) == NULL)
+            break;
 
-    read(sock, buffer, BUFFER_SIZE);
-    printf("Reply received from server: %s\n", buffer);
+        buffer[strcspn(buffer, "\n")] = '\0';
+
+        if (send(sock, buffer, strlen(buffer), 0) < 0)
+        {
+            perror("Send failed");
+            break;
+        }
+
+        if (strcmp(buffer, "exit") == 0)
+            break;
+
+        memset(buffer, 0, sizeof(buffer));
+        int bytes = recv(sock, buffer, sizeof(buffer) - 1, 0);
+        if (bytes <= 0)
+        {
+            printf("Server disconnected.\n");
+            break;
+        }
+
+        buffer[bytes] = '\0';
+        printf("Server: %s\n", buffer);
+
+        if (strcmp(buffer, "exit") == 0)
+            break;
+    }
 
     close(sock);
-
     return 0;
 }
