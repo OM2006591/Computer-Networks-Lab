@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -16,7 +17,6 @@ int main() {
     char *hello = "Hello from server";
     struct sockaddr_in servaddr, cliaddr;
 
-    
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("socket creation failed");
         exit(EXIT_FAILURE);
@@ -25,25 +25,37 @@ int main() {
     memset(&servaddr, 0, sizeof(servaddr));
     memset(&cliaddr, 0, sizeof(cliaddr));
 
-    servaddr.sin_family = AF_INET; // IPv4
+    servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = INADDR_ANY;
     servaddr.sin_port = htons(PORT);
 
-   
-    if (bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
+    if (bind(sockfd, (const struct sockaddr *)&servaddr,
+             sizeof(servaddr)) < 0) {
         perror("bind failed");
         exit(EXIT_FAILURE);
     }
 
-    socklen_t len;
-    int n;
+    int len, n;
+
     len = sizeof(cliaddr);
 
-    n = recvfrom(sockfd, (char *)buffer, MAXLINE, 0, (struct sockaddr *)&cliaddr, &len);
-    buffer[n] = '\0';
-    printf("Client: %s\n", buffer);
+    n = recvfrom(sockfd, (char *)buffer, MAXLINE - 1,
+                 0, (struct sockaddr *)&cliaddr,
+                 (socklen_t *)&len);
 
-    sendto(sockfd, (const char *)hello, strlen(hello), 0, (const struct sockaddr *)&cliaddr, len);
+    if (n < 0) {
+        perror("recvfrom failed");
+        close(sockfd);
+        exit(EXIT_FAILURE);
+    }
+
+    buffer[n] = '\0';
+    printf("Client : %s\n", buffer);
+
+    sendto(sockfd, (const char *)hello, strlen(hello),
+           0, (const struct sockaddr *)&cliaddr,
+           len);
+
     printf("Hello message sent.\n");
 
     close(sockfd);
